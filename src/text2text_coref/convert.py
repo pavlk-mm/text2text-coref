@@ -167,6 +167,9 @@ def convert_to_text(docs, out_file, solve_empty_nodes=True, mark_entities=True, 
                 if word.is_empty():
                     out_word = "##" + (out_word if out_word != "_" else "") # empty nodes start with ##
                 mentions = []
+                # Collect mention start and end positions for proper nesting of XML-like tags
+                mention_starts = []
+                mention_ends = []
                 if mark_entities:
                     for mention in set(word.coref_mentions):
                         if sequential_ids:
@@ -179,7 +182,9 @@ def convert_to_text(docs, out_file, solve_empty_nodes=True, mark_entities=True, 
                             reduce_discontinuous_mention(mention)
                         span = mention.span
                         mention_start = float(span.split("-")[0])
+                        mention_starts.append(mention_start)
                         mention_end = float(span.split("-")[1]) if "-" in span else mention_start
+                        mention_ends.append(mention_end)
                         if mention_start == float(word.ord) and mention_end == float(word.ord):
                             mentions.append(f"[{eid}]")
                         elif mention_start == float(word.ord):
@@ -191,21 +196,37 @@ def convert_to_text(docs, out_file, solve_empty_nodes=True, mark_entities=True, 
                     # Convert bracket format to XML-like tags
                     opening_tags = []
                     closing_tags = []
-                    for mention in sorted(mentions):
+                    # Span lengths to help with proper nesting
+                    opened_ends = []
+                    closed_starts = []
+                    for mention, start, end in zip(mentions, mention_starts, mention_ends):
                         if mention.startswith('[') and mention.endswith(']'):
                             # Single-word mention: [e1]
                             eid = mention[1:-1]
                             opening_tags.append(f"<{eid}>")
                             closing_tags.append(f"</{eid}>")
+                            opened_ends.append(end)
+                            closed_starts.append(start)
                         elif mention.startswith('['):
                             # Opening: [e1
                             eid = mention[1:]
                             opening_tags.append(f"<{eid}>")
+                            opened_ends.append(end)
                         else:
                             # Closing: e1]
                             eid = mention[:-1]
                             closing_tags.append(f"</{eid}>")
-                    out_words.append(''.join(reversed(opening_tags)) + out_word + ''.join(reversed(closing_tags)))
+                            closed_starts.append(start)
+
+                    # Ensure proper nesting by sorting tags:
+                    # The closing tag with the highest corresponding start comes first
+                    closing_tags = [tag for _, tag in sorted(zip(closed_starts, closing_tags), reverse=True)]
+                    # The opening tag with the highest corresponding end comes first
+                    opening_tags = [tag for _, tag in sorted(zip(opened_ends, opening_tags), reverse=True)]
+                    
+                    # Combine tags and word
+                    out_words.append(''.join(opening_tags) + out_word + ''.join(closing_tags))
+
                 elif len(mentions) > 0:
                     out_words.append(f"{out_word}|{','.join(sorted(mentions))}")
                 else:
