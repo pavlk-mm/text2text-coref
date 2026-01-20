@@ -126,11 +126,11 @@ def convert_text_to_conllu(text_docs, conllu_skeleton_file, out_file, use_gold_e
         write_data(udapi_docs, f)
 
 
-def convert_conllu_file_to_text(filename, output_filename, zero_mentions, blind=False, sequential_ids=True):
+def convert_conllu_file_to_text(filename, output_filename, zero_mentions, blind=False, sequential_ids=True, xml_like=False):
     if not output_filename:
         output_filename = filename.replace(".conllu", ".txt")
     docs = read_data(filename)
-    convert_to_text(docs, output_filename, zero_mentions, not blind, sequential_ids)
+    convert_to_text(docs, output_filename, zero_mentions, not blind, sequential_ids, xml_like)
 
 
 def shift_empty_node(node):
@@ -149,7 +149,7 @@ def shift_empty_node(node):
 
 
 
-def convert_to_text(docs, out_file, solve_empty_nodes=True, mark_entities=True, sequential_ids=False):
+def convert_to_text(docs, out_file, solve_empty_nodes=True, mark_entities=True, sequential_ids=False, xml_like=False):
     with open(out_file, "w", encoding="utf-8") as f:
         for doc in docs:
             eids = {}
@@ -186,7 +186,27 @@ def convert_to_text(docs, out_file, solve_empty_nodes=True, mark_entities=True, 
                             mentions.append(f"[{eid}")
                         elif mention_end == float(word.ord):
                             mentions.append(f"{eid}]")
-                if len(mentions) > 0:
+                
+                if xml_like and len(mentions) > 0:
+                    # Convert bracket format to XML-like tags
+                    opening_tags = []
+                    closing_tags = []
+                    for mention in sorted(mentions):
+                        if mention.startswith('[') and mention.endswith(']'):
+                            # Single-word mention: [e1]
+                            eid = mention[1:-1]
+                            opening_tags.append(f"<{eid}>")
+                            closing_tags.append(f"</{eid}>")
+                        elif mention.startswith('['):
+                            # Opening: [e1
+                            eid = mention[1:]
+                            opening_tags.append(f"<{eid}>")
+                        else:
+                            # Closing: e1]
+                            eid = mention[:-1]
+                            closing_tags.append(f"</{eid}>")
+                    out_words.append(''.join(reversed(opening_tags)) + out_word + ''.join(reversed(closing_tags)))
+                elif len(mentions) > 0:
                     out_words.append(f"{out_word}|{','.join(sorted(mentions))}")
                 else:
                     out_words.append(out_word)
