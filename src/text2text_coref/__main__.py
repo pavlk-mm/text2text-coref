@@ -77,6 +77,12 @@ def parse_args():
         action="store_true",
         help="Map zero mentions in the output to the gold empty nodes in CoNLLu.",
     )
+    text2conllu_parser.add_argument(
+        "-x",
+        "--xml_like",
+        action="store_true",
+        help="Parse XML-like tags instead of brackets for annotations",
+    )
 
     conllu2json_parser = subparsers.add_parser(
         "conllu2json",

@@ -38,12 +38,12 @@ def write_data(docs, f):
     logging.getLogger().setLevel(level)
 
 
-def convert_text_file_to_conllu(filename, skeleton_filename, output_filename, zero_mentions=False):
+def convert_text_file_to_conllu(filename, skeleton_filename, output_filename, zero_mentions=False, xml_like=False):
     if not output_filename:
         output_filename = filename.replace(".txt", ".conllu")
     with open(filename, encoding="utf-8") as f:
         text_docs = f.read().splitlines()
-        convert_text_to_conllu(text_docs, skeleton_filename, output_filename, zero_mentions)
+        convert_text_to_conllu(text_docs, skeleton_filename, output_filename, zero_mentions, xml_like)
 
 
 def remove_empty_node(node):
@@ -68,7 +68,43 @@ def reduce_discontinuous_mention(mention):
             mention.words = subspan_words
             break
 
-def convert_text_to_conllu(text_docs, conllu_skeleton_file, out_file, use_gold_empty_nodes=True):
+def parse_xml_like_word(text):
+    """Parse XML-like formatted word into opening tags, word text, and closing tags.
+    
+    Args:
+        text: String like '<e25821><e25756>L2</e25756>'
+    
+    Returns:
+        tuple: (opening_tags, word_text, closing_tags)
+        Example: (['e25821', 'e25756'], 'L2', ['e25756'])
+    """
+    import re
+    
+    opening_tags = []
+    closing_tags = []
+    word_text = text
+    
+    # Extract all opening tags from the beginning
+    while word_text.startswith('<') and not word_text.startswith('</'):
+        match = re.match(r'^<([^/>]+)>', word_text)
+        if match:
+            opening_tags.append(match.group(1))
+            word_text = word_text[match.end():]
+        else:
+            break
+    
+    # Extract all closing tags from the end
+    while '</e' in word_text:
+        match = re.search(r'<\/([^>]+)>$', word_text)
+        if match:
+            closing_tags.insert(0, match.group(1))  # Insert at beginning to maintain order
+            word_text = word_text[:match.start()]
+        else:
+            break
+    
+    return opening_tags, word_text, closing_tags
+
+def convert_text_to_conllu(text_docs, conllu_skeleton_file, out_file, use_gold_empty_nodes=True, xml_like=False):
     udapi_docs = read_data(conllu_skeleton_file)
     # udapi_docs2 = read_data(conllu_skeleton_file)
     move_head = MoveHead()
@@ -92,33 +128,59 @@ def convert_text_to_conllu(text_docs, conllu_skeleton_file, out_file, use_gold_e
                     j += 1
                 j += 1
         udapi_words = [word for word in udapi_doc.nodes_and_empty]
-        for i in range(len(udapi_words)):
-            if udapi_words[i].form != words[i].split("|")[0]:
-                logger.warning(f"WARNING: words do not match. DOC: {udapi_doc.meta['docname']}, word1: {words[i].split('|')[0]}, word2: {udapi_words[i].form}, i: {i}")
-        # if len(udapi_words) != len(words):
-        #     continue
+        if not xml_like:
+            for i in range(len(udapi_words)):
+                if udapi_words[i].form != words[i].split("|")[0]:
+                    logger.warning(f"WARNING: words do not match. DOC: {udapi_doc.meta['docname']}, word1: {words[i].split('|')[0]}, word2: {udapi_words[i].form}, i: {i}")
+            # if len(udapi_words) != len(words):
+            #     continue
         assert len(udapi_words) == len(words)
         mention_starts = defaultdict(list)
         entities = {}
-        for i, (word, udapi_word) in enumerate(zip(words, udapi_words)):
-            if word.split("|")[0] != udapi_word.form:
-                logger.warning(f"WARNING: words do not match. DOC: {udapi_doc.meta['docname']}, word1: {word.split('|')[0]}, word2: {udapi_word.form}")
-            if "|" in word:
-                mentions = word.split("|")[1].replace("-", ",").split(",")
-                for mention in mentions:
-                    eid = mention.replace("[", "").replace("]", "")
-                    if len(eid) == 0:
-                        continue
+        
+        if xml_like:
+            # Parse XML-like format
+            for i, (word, udapi_word) in enumerate(zip(words, udapi_words)):
+                # Extract the actual word and tags from XML-like format
+                opening_tags, word_text, closing_tags = parse_xml_like_word(word)
+                
+                if word_text != udapi_word.form:
+                    logger.warning(f"WARNING: words do not match. DOC: {udapi_doc.meta['docname']}, word1: {word_text}, word2: {udapi_word.form}")
+                
+                # Process opening tags
+                for eid in opening_tags:
                     if eid not in entities:
                         entities[eid] = udapi_doc.create_coref_entity(eid=eid)
-                    if mention.startswith("["):
-                        mention_starts[eid].append(i)
-                    if mention[-1] == "]":
-                        if not mention_starts[eid]:
-                            logger.warning(f"WARNING: Closing mention which was not opened. DOC: {udapi_doc.meta['docname']}, EID: {eid}")
+                    mention_starts[eid].append(i)
+                
+                # Process closing tags
+                for eid in closing_tags:
+                    if not mention_starts[eid]:
+                        logger.warning(f"WARNING: Closing mention which was not opened. DOC: {udapi_doc.meta['docname']}, EID: {eid}")
+                        continue
+                    entities[eid].create_mention(words=udapi_words[mention_starts[eid][-1]: i + 1])
+                    mention_starts[eid].pop()
+        else:
+            # Parse bracket format
+            for i, (word, udapi_word) in enumerate(zip(words, udapi_words)):
+                if word.split("|")[0] != udapi_word.form:
+                    logger.warning(f"WARNING: words do not match. DOC: {udapi_doc.meta['docname']}, word1: {word.split('|')[0]}, word2: {udapi_word.form}")
+                if "|" in word:
+                    mentions = word.split("|")[1].replace("-", ",").split(",")
+                    for mention in mentions:
+                        eid = mention.replace("[", "").replace("]", "")
+                        if len(eid) == 0:
                             continue
-                        entities[eid].create_mention(words=udapi_words[mention_starts[eid][-1]: i + 1])
-                        mention_starts[eid].pop()
+                        if eid not in entities:
+                            entities[eid] = udapi_doc.create_coref_entity(eid=eid)
+                        if mention.startswith("["):
+                            mention_starts[eid].append(i)
+                        if mention[-1] == "]":
+                            if not mention_starts[eid]:
+                                logger.warning(f"WARNING: Closing mention which was not opened. DOC: {udapi_doc.meta['docname']}, EID: {eid}")
+                                continue
+                            entities[eid].create_mention(words=udapi_words[mention_starts[eid][-1]: i + 1])
+                            mention_starts[eid].pop()
         udapi.core.coref.store_coref_to_misc(udapi_doc)
         move_head.run(udapi_doc)
     # debug_udapi(udapi_docs, udapi_docs2)
