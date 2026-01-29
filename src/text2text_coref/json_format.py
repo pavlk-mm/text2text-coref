@@ -1,3 +1,5 @@
+from text2text_coref.convert import shift_empty_node_recreate
+
 from .convert import shift_empty_node, reduce_discontinuous_mention
 import udapi
 from collections import defaultdict
@@ -91,7 +93,8 @@ def convert_json_to_conllu(json_filename, conllu_skeleton_filename, output_filen
             if not use_gold_empty_nodes and word.is_empty():
                 remove_empty_node(word)
             elif word.is_empty():
-                shift_empty_node(word)
+                shift_empty_node_recreate(word)
+                # shift_empty_node(word)
 
         if not use_gold_empty_nodes:
             j = 1

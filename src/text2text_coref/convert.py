@@ -58,6 +58,9 @@ def remove_empty_node(node):
         node.root.empty_nodes.remove(node)
     except ValueError:
         return # self may be an already deleted node e.g. if n.remove() called twice
+    for n in node._root.empty_nodes + node._root._descendants:
+        if n._deps:
+            n._deps = [dep for dep in n._deps if dep["parent"] != node]
 
 def reduce_discontinuous_mention(mention):
     """Reduce a mention to a continuous span if it is discontinuous."""
@@ -84,7 +87,7 @@ def convert_text_to_conllu(text_docs, conllu_skeleton_file, out_file, use_gold_e
             if not use_gold_empty_nodes and word.is_empty():
                 remove_empty_node(word)
             elif word.is_empty():
-                shift_empty_node(word)
+                shift_empty_node_recreate(word)
         if not use_gold_empty_nodes:
             j = 1
             for i in range(len(udapi_words)):
@@ -147,6 +150,34 @@ def shift_empty_node(node):
             new_ord += 0.1
     node.ord = new_ord
     node.deps[0]["parent"].root.empty_nodes.sort()
+
+def shift_empty_node_recreate(node):
+    if not node.is_empty():
+        return
+    parent = node.deps[0]["parent"]
+    if int(node.ord) == parent.ord:
+        return
+    if parent.is_root():
+        new_ord = 0.1
+        for empty in node.deps[0]["parent"].root.empty_nodes:
+            if int(empty.ord) == node.deps[0]["parent"].ord:
+                new_ord += 0.1
+        new_empty = parent.create_empty_child()
+        new_empty.ord = new_ord
+        node.deps[0]["parent"].root.empty_nodes.sort()
+    else:
+        new_empty = parent.create_empty_child(node.deps[0]["deprel"], after=True)
+    # new_empty.misc = node.misc
+    new_empty.form = node.form
+    new_empty.lemma = node.lemma
+    for empty in node.deps[0]["parent"].root.empty_nodes:
+        for par in empty.deps:
+            if par["parent"] == node:
+                par["parent"] = new_empty
+    new_empty.deps = node.deps
+    remove_empty_node(node)
+
+
 
 
 
