@@ -83,6 +83,8 @@ def convert_text_to_conllu(text_docs, conllu_skeleton_file, out_file, use_gold_e
             # Remove empty nodes
             if not use_gold_empty_nodes and word.is_empty():
                 remove_empty_node(word)
+            elif word.is_empty():
+                shift_empty_node(word)
         if not use_gold_empty_nodes:
             j = 1
             for i in range(len(udapi_words)):
