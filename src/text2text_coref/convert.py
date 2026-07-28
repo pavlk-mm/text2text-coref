@@ -82,7 +82,12 @@ def convert_text_to_conllu(text_docs, conllu_skeleton_file, out_file, use_gold_e
         words = text.split(" ")
         udapi_words = [word for word in udapi_doc.nodes]
         for word in udapi_doc.nodes_and_empty:
-            word.misc = {}
+            #word.misc = {}
+            # TODO: pull request
+            # clear only coref-related misc attributes
+            word.misc["Entity"] = None
+            word.misc["Bridge"] = None
+            word.misc["SplitAnte"] = None
             # Remove empty nodes
             if not use_gold_empty_nodes and word.is_empty():
                 remove_empty_node(word)
@@ -93,7 +98,7 @@ def convert_text_to_conllu(text_docs, conllu_skeleton_file, out_file, use_gold_e
             for i in range(len(udapi_words)):
                 word = udapi_words[i]
                 while j < len(words) and words[j].startswith("##"):
-                    word.create_empty_child("_", after=True)
+                    word.create_empty_child("dep", after=True) # TODO: deprel fixed to "dep", pull request
                     j += 1
                 j += 1
         udapi_words = [word for word in udapi_doc.nodes_and_empty]

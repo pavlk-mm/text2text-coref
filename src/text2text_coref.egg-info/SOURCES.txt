@@ -1,0 +1,14 @@
+LICENSE
+README.md
+pyproject.toml
+src/text2text_coref/__init__.py
+src/text2text_coref/__main__.py
+src/text2text_coref/convert.py
+src/text2text_coref/json_format.py
+src/text2text_coref/output_cleaner.py
+src/text2text_coref.egg-info/PKG-INFO
+src/text2text_coref.egg-info/SOURCES.txt
+src/text2text_coref.egg-info/dependency_links.txt
+src/text2text_coref.egg-info/entry_points.txt
+src/text2text_coref.egg-info/requires.txt
+src/text2text_coref.egg-info/top_level.txt

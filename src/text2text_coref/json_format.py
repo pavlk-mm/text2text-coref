@@ -117,6 +117,14 @@ def convert_json_to_conllu(json_filename, conllu_skeleton_filename, output_filen
             for mention_offsets in entity:
                 span_start = mention_offsets[0]
                 span_end = mention_offsets[1]
+                if span_end >= len(udapi_words):
+                    logger.warning(f"WARNING: mention span end {span_end} is out of bounds for document {udapi_doc.meta['docname']} with {len(udapi_words)} words. Adjusting span end to {len(udapi_words) - 1}.")
+                    span_end = len(udapi_words) - 1
+                if span_start >= len(udapi_words):
+                    logger.warning(f"WARNING: mention span start {span_start} is out of bounds for document {udapi_doc.meta['docname']} with {len(udapi_words)} words. Skipping this mention.")
+                    continue
+                while udapi_words[span_end].root != udapi_words[span_start].root and span_end > span_start:
+                    span_end -= 1
                 entities[eid].create_mention(words=udapi_words[span_start: span_end + 1])
         udapi.core.coref.store_coref_to_misc(udapi_doc)
         move_head.run(udapi_doc)

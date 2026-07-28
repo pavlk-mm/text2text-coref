@@ -25,6 +25,13 @@ def parse_args():
         action="store_true",
         help="Map zero mentions in the output to the gold empty nodes in CoNLLu.",
     )
+    parser.add_argument(
+        "-F",
+        "--format",
+        choices=["txt", "eml"],
+        default="txt",
+        help="Format of the input and output documents. 'txt' for plain text with inline annotations, 'eml' for EML format.",
+    )
 
     conllu2text_parser = subparsers.add_parser(
         "conllu2text",
@@ -128,6 +135,46 @@ def parse_args():
         help="Use gold empty nodes from the skeleton CoNLLu file.",
     )
 
+    conllu2eml_parser = subparsers.add_parser(
+        "conllu2eml",
+        prog="conllu2eml_convertor",
+        help="converts conllu with coference annotations into eml format"
+    )
+    conllu2eml_parser.add_argument("filename")
+    conllu2eml_parser.add_argument("-o", "--output_filename", default=None)
+    conllu2eml_parser.add_argument(
+        "-s",
+        "--sequential_ids",
+        action="store_true",
+        help="Renumber entity ids starting from 1",
+    )
+    conllu2eml_parser.add_argument(
+        "-z",
+        "--zero_mentions",
+        action="store_true",
+        help="Include zero mentions in output eml.",
+    )
+    conllu2eml_parser.add_argument(
+        "-b",
+        "--blind",
+        action="store_true",
+        help="discard annotations",
+    )
+    conllu2eml_parser.add_argument(
+        "-f",
+        "--no_empty_node_form",
+        action="store_true",
+        help="Do not include empty node forms in the output eml.",
+    )
+    eml2conllu_parser = subparsers.add_parser(
+        "eml2conllu",
+        prog="eml2conllu_convertor",
+        help="converts eml format with coference annotations into conllu format"
+    )
+    eml2conllu_parser.add_argument("filename")
+    eml2conllu_parser.add_argument("skeleton_filename")
+    eml2conllu_parser.add_argument("-o", "--output_filename", default=None)
+
     return main_parser.parse_args()
 
 
@@ -155,6 +202,14 @@ def main():
         from .json_format import convert_json_to_conllu
         del args.action
         convert_json_to_conllu(**vars(args))
+    elif args.action == "conllu2eml":
+        from .eml_format import convert_conllu_file_to_eml
+        del args.action
+        convert_conllu_file_to_eml(**vars(args))
+    elif args.action == "eml2conllu":
+        from .eml_format import convert_eml_file_to_conllu
+        del args.action
+        convert_eml_file_to_conllu(**vars(args))
 
 
 

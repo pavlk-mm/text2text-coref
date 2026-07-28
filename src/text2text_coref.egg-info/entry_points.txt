@@ -1,0 +1,2 @@
+[console_scripts]
+text2text_coref = text2text_coref.__main__:main
